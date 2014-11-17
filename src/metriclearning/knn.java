@@ -1,6 +1,6 @@
 package metriclearning;
 
-public class knn {
+public class KNN {
 	private double[][] trainData;
 	private double[][] testData;
 	private int[] trainLabel;
@@ -10,7 +10,7 @@ public class knn {
 	
 	private int K;
 	
-	public knn(int k, double[][] trainData, int[] trainLabel, double[][] testData, int[] testLabel){
+	public KNN(int k, double[][] trainData, int[] trainLabel, double[][] testData, int[] testLabel){
 		this.K = k;
 		this.trainData = trainData;
 		this.trainLabel = trainLabel;
@@ -18,20 +18,25 @@ public class knn {
 		this.testLabel = testLabel;
 	}
 	
+	public void setOrdinalRange(double[] ordinal_start, double[] ordinal_end){
+	    this.ordinal_end = ordinal_end;
+	    this.ordinal_start = ordinal_start;
+	}
+	
 	public double computeTestAccuracyOrdinal(){
-		int total = testData.length;
-		int accurate = 0;
-		
-		for (int i = 0; i < testData.length; i++){
-			double[] tData = testData[i];
-			// classify tData
-			int label = classify(tData, false);
-			if (label == testLabel[i]){
-				accurate++;
-			}
-		}
-		
-		return accurate*1.0/total;
+	    int total = testData.length;
+        int accurate = 0;
+        
+        for (int i = 0; i < testData.length; i++){
+            double[] tData = testData[i];
+            // classify tData
+            int label = classify(tData, true);
+            if (label == testLabel[i]){
+                accurate++;
+            }
+        }
+        
+        return accurate*1.0/total;
 	}
 	
 	// test accuracy based on training data 
@@ -77,13 +82,13 @@ public class knn {
 	private int computeBestLabel(double[] topKDists, int[] topKIdxs){
 		int[] labels = new int[3];
 		for (int i = 0; i < topKIdxs.length; i++){
-			labels[trainLabel[i]-1]++;
+			labels[trainLabel[topKIdxs[i]]-1]++;
 		}
 		
 		int bestLabel = 0;
 		int maxCnt = Integer.MIN_VALUE;
 		for (int k = 0; k < K; k++){
-			if (labels[k] < maxCnt){
+			if (labels[k] > maxCnt){
 				bestLabel = k;
 				maxCnt = labels[k];
 			}
@@ -108,18 +113,18 @@ public class knn {
 	}
 	
 	private void updateTopKDists(double[] topKDists, int[] topKIdxs, double distance, int targetIdx){
-		int minIdx = 0;
-		double minVal = Double.MAX_VALUE;
+		int maxIdx = 0;
+		double maxVal = Double.MIN_VALUE;
 		for (int i = 0; i < topKIdxs.length; i++){
-			if (topKDists[i] < minVal){
-				minVal = topKDists[i];
-				minIdx = i;
+			if (topKDists[i] > maxVal){
+			    maxVal = topKDists[i];
+				maxIdx = i;
 			}
 		}
 		
-		if (distance < minVal){
-			topKDists[minIdx] = distance;
-			topKIdxs[minIdx] = targetIdx;
+		if (distance < maxVal){
+			topKDists[maxIdx] = distance;
+			topKIdxs[maxIdx] = targetIdx;
 		}
 	}
 	
@@ -128,17 +133,19 @@ public class knn {
 		double dist = 0.0;
 		for (int i = 0; i < point1.length; i++){
 			if (idx == i){
-				dist +=   Math.pow(ordinal_end[(int) point1[idx]]-ordinal_start[(int) point1[idx]], 2)/12 
-						+ Math.pow(ordinal_end[(int) point2[idx]]-ordinal_start[(int) point2[idx]], 2)/12 
-						+ Math.pow(ordinal_start[(int) point1[idx]] + ordinal_end[(int)point1[idx]], 2)/4 
-						+ Math.pow(ordinal_start[(int) point2[idx]] + ordinal_end[(int)point2[idx]], 2)/4
-						- 2 * (ordinal_start[(int) point1[idx]] + ordinal_end[(int)point1[idx]]) 
-							* (ordinal_start[(int) point2[idx]] + ordinal_end[(int)point2[idx]])/4;
+			    double s1 = ordinal_start[(int) (Math.round(point1[idx])-1)];
+			    double e1 = ordinal_end[(int) (Math.round(point1[idx])-1)];
+			    double s2 = ordinal_start[(int) (Math.round (point2[idx])-1)];
+			    double e2 = ordinal_end[(int) (Math.round(point2[idx])-1)];
+			    
+			    dist += Math.pow(e1-s1, 2)/12 + Math.pow(e2-s2, 2)/12 + Math.pow(e1+s1, 2)/4 + Math.pow(e2+s2, 2)/4
+			            -2*(e1+s1)*(e2+s2)/4;
+				
 			} else{
 				dist += Math.pow(point1[1]- point2[i], 2);
 			}
 		}
-		return Math.sqrt(dist);
+		return dist;
 	}
 	
 	private double computeEuclideanDist(double[] point1, double[] point2){
@@ -147,6 +154,6 @@ public class knn {
 			dist += Math.pow(point1[i]-point2[i], 2); 
 		}
 		
-		return Math.sqrt(dist);
+		return dist;
 	}
 }
