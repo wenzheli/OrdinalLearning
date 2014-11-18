@@ -1,8 +1,8 @@
-package metriclearning;
+package metriclearning.classifier;
 
 import java.io.IOException;
 
-public class app {
+public class App {
 
     /**
      * @param args
