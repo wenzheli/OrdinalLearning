@@ -1,4 +1,4 @@
-package metriclearning.classifier;
+package ordinal.classifier;
 
 public class KNN {
 	private double[][] trainData;

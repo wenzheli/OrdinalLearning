@@ -1,4 +1,4 @@
-package metriclearning.classifier;
+package ordinal.datasets;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -9,6 +9,12 @@ import java.util.List;
 import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+
+import ordinal.data.Data;
+import ordinal.data.Feature;
+import ordinal.data.Instance;
+import ordinal.data.OrdinalFeature;
+import ordinal.data.RealFeature;
 
 /**
  * Factory class to generate correct format data based on the 
