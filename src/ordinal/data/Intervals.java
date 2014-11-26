@@ -1,5 +1,6 @@
 package ordinal.data;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
@@ -17,11 +18,24 @@ public class Intervals {
 	 * @param numOrdinalVals
 	 */
 	public Intervals(int numOfOrdinalVals){
-		for (int i = 0; i < numOfOrdinalVals - 1; i++)
-			endPoints.add(Math.random());
+		endPoints = new ArrayList<Double>();
+		for (int i = 1; i <= numOfOrdinalVals - 1; i++)
+			endPoints.add(1.0*i/numOfOrdinalVals);
 		
 		// sort in increasing order
 		Collections.sort(endPoints);
+	}
+	
+	public double getEndPoint(int index){
+		return endPoints.get(index);
+	}
+	
+	public double getLastEndPoint(){
+		return endPoints.get(size()-1);
+	}
+	
+	public double getFirstEndPoint(){
+		return endPoints.get(0);
 	}
 	
 	public int size(){

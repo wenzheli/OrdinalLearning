@@ -17,4 +17,6 @@ public interface Classifier {
 	 *  TODO: should support multilabel classification... 
 	 */
 	int classify(Instance instance);
+	
+	void train();
 }

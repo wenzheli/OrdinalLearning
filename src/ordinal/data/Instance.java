@@ -37,6 +37,14 @@ public class Instance {
 		return ordinalFeatures.size() + realFeatures.size();
 	}
 	
+	public List<Double> getRealFeatures(){
+		return realFeatures;
+	}
+	
+	public void setRealFeatures(List<Double> realFeatures){
+		this.realFeatures = realFeatures;
+	}
+	
 	public String toString(){
 		StringBuilder stBuilder = new StringBuilder();
 		stBuilder.append("[");

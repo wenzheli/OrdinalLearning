@@ -17,4 +17,10 @@ public class MultiClassLogistic implements Classifier{
 		return 0;
 	}
 
+	@Override
+	public void train() {
+		// TODO Auto-generated method stub
+		
+	}
+
 }
