@@ -1,17 +1,10 @@
-function learn_ordinal
+function learn_ordinal(regularizer)
 
-load('nur_data.mat');
+load('car_data.mat');
 addpath('C:\Users\Yuan Shi\Desktop\ordinal_svm\liblinear-1.96\matlab');
 addpath('C:\Users\Yuan Shi\Desktop\ordinal_svm\libknn2\mexfunctions');
 addpath('C:\Users\Yuan Shi\Desktop\ordinal_svm\libknn2\helperfunctions');
 addpath('C:\Users\Yuan Shi\Desktop\ordinal_svm\libknn2');
-
-% idx = find(trY == 2);
-% trY(idx) = []; trX(idx,:) = [];
-% trY(trY>2) = trY(trY>2) - 1;
-% idx = find(teY == 2);
-% teY(idx) = []; teX(idx,:) = [];
-% teY(teY>2) = teY(teY>2) - 1;
 
 data = trX;
 y = trY;
@@ -19,11 +12,11 @@ y = trY;
 tst_data = teX;
 tst_y = teY;
 
-% data(:,3) = data(:,3)-1;
-% data(:,4) = data(:,4)/2;
-% 
-% tst_data(:,3) = tst_data(:,3)-1;
-% tst_data(:,4) = tst_data(:,4)/2;
+data(:,3) = data(:,3)-1;
+data(:,4) = data(:,4)/2;
+
+tst_data(:,3) = tst_data(:,3)-1;
+tst_data(:,4) = tst_data(:,4)/2;
 
 % suppose all the attributes are ordinal 
 N = size(data,1);
@@ -43,14 +36,16 @@ for i=1:D
     % # of ordinal values for each dimension
     n = size(unique(data(:,i)),1);
     E = E + n-1;   
-%    interval = linspace(0,1,n+1); % including 0 and 1
-
-    interval = linspace(1/(2*n), (2*n+1)/(2*n), n+1);
+    interval = linspace(0,1,n+1); % including 0 and 1
     intervals{i}=interval;
 end
 H = zeros(N*K,1);
 G = zeros(N*K,D*K+N);
 Q = zeros(D*K+N,1);
+% create Q
+for j=D*K+1:D*K+N
+    Q(j)=regularizer;
+end
 
 % initialize p
 P = zeros(D*K+N, D*K+N);
@@ -59,52 +54,15 @@ for i=1:D*K
 end
 
 %% baseline SVM
-best_accu = 0;
-for regularizer = 4.^[-3:3]
-    cmd = ['-s 3 -c ', num2str(regularizer), ' -v 5'];
-    accu = train(y, sparse(data), cmd);
-    if accu > best_accu
-        best_reg = regularizer;
-        best_accu = accu;
-    end
-end
-
-regularizer = best_reg;
-disp(regularizer);
-
-% norm data
-norm_data = data;
-norm_tst_data = tst_data;
-for i=  1:D
-    norm_tst_data(:,i) = norm_tst_data(:,i) / max( norm_data(:,i) );
-end
-
-
-for i=  1:D
-    norm_data(:,i) = norm_data(:,i) / max( norm_data(:,i) );
-end
-
 cmd = ['-s 3 -c ', num2str(regularizer)];
-model = train(y, sparse(norm_data), cmd);
-
-[predicted_label, accuracy, decision_values] = predict(y, sparse(norm_data), model);
-baseline_accu_train = accuracy(1);
-
-[predicted_label, accuracy, decision_values] = predict(tst_y, sparse(norm_tst_data), model);
+model = train(y, sparse(data), cmd);
+[predicted_label, accuracy, decision_values] = predict(tst_y, sparse(tst_data), model);
 baseline_accu = accuracy(1);
-
-% create Q
-for j=D*K+1:D*K+N
-    Q(j)=regularizer;
-end
-
-% baseline knn
-baseline_knn = knncl(eye(D), norm_data', y', norm_tst_data', tst_y', 3);
 
 %% EM-step
 
-for itr = 1:8
-    disp(['iter = ',num2str(itr), ' ******']);
+for itr=1:10
+    
     %% Fix M, learn W, quadratic programming. 
 %     for i=1:N   % for each instance
 %         instance = data(1,:)';
@@ -166,13 +124,11 @@ for itr = 1:8
    for i = 1:N
        psi_i = 0;
        for c = 1:K
-            tmp = (W(c,:) - W(y(i),:))*new_X(i,:)' + (y(i) ~= c);
+            tmp = (W(y(i),:) - W(c,:))*new_X(i,:)' + (y(i) ~= c);
             psi_i = max( psi_i, tmp);
        end
        psi(i) = psi_i;
    end
-   
-   obj_val(itr) = regularizer * sum(psi) + sum( sum( W.^2 ) ) / 2;
    
    % generating test data
    tst_N = length(tst_y);
@@ -184,23 +140,18 @@ for itr = 1:8
        end
    end
    
-   [predicted_label, accuracy, decision_values] = predict(y, sparse(new_X), model);
-   ordinal_accu_train(itr) = accuracy(1);
-   
    [predicted_label, accuracy, decision_values] = predict(tst_y, sparse(new_tst_X), model);
+    
    ordinal_accu(itr) = accuracy(1);
    
-   ordinal_knn{itr} = knncl(eye(D), new_X', y', new_tst_X', tst_y', 3);
    
    %% Fix W, learn M, linear programming
     C = zeros(E+N,1);    % objective coefficient
     C(E+1:E+N,1) = 1;
     
     % Ax <= B
-    B = zeros(N*K + E + D, 1);
-    A = zeros(N*K + E + D, E+N);
-    
-    A = sparse(A); B = sparse(B);
+    B = zeros(D*K + E + D,1);
+    A = zeros(D*K + E + D, E+N);
     
     for i=1:N % for each instance
         instance = data(i,:);
@@ -212,80 +163,47 @@ for itr = 1:8
             if y(i)==k
                 B(row_idx)=0;
             else
-                B(row_idx)=-1;
+                B((i-1)*K+k)=-1;
             end
             
             % fill out the row of A
-            A(row_idx, E+i) = -1;
-            if y(i)~= k
+            A(,E+i)=-1;
+            if y(i)~=k
                 label = y(i);
-                a = W(k,:)-W(label,:);   % w_k - w_label
-                
-                for j = 1:D   % iterate through all the attributes
-                    delta = 0.5*a(j);
+                a = W((k-1)*D+1:k*D,1)-W((label-1)*D+1:label*D,1);   % w_k - w_label
+                for j=1:D   % iterate through all the attributes
                     interval = intervals{j};
-                    
-                    if instance(j)==1 % only include the first end point
-                        A(row_idx, cumE(j)+1) = delta;
-                        
-                    elseif instance(j)== size(interval,1)-1 % only include the last end point
-                        A(row_idx, cumE(j)+size(interval,1)-2) = delta;
-                       % A(row_idx,E+i) = A((i-1)*K+k,E+i) - 1/2 * a(j);
-                        B(row_idx) = B(row_idx) - delta;
-     
+                    if instance(j,1)==1 % only include the first end point
+                        A((i-1)*K+k, cumE(j)+1) = 1/2 * a(j);
+                    elseif instance(j,1)== size(interval,1)-1 % only include the last end point
+                        A((i-1)*K+k, cumE(j)+size(interval,1)-2) = 1/2 * a(j);
+                        A((i-1)*K+k,E+i) = A((i-1)*K+k,E+i) - 1/2 * a(j);
                     else  % include both of end points
-                        A(row_idx, cumE(j)+instance(j)-1) = delta;
-                        A(row_idx, cumE(j)+instance(j)) = delta;
+                        A((i-1)*K+k, cumE(j)+instance(j,1)-1) = 1/2*a(j);
+                        A((i-1)*K+k, cumE(j)+instance(j,1)) = 1/2*a(j);
                     end
                 end
             end
+            
+            
         end
     end
     
-    cumE2 = cumE;
-    for i = 2:D
-        cumE2(i) = cumE2(i)+i-1;
-    end
-    for i= 1:D   % iterate through constraints 
-        interval = intervals{i};
-        for j = 1:length(interval)-1
-            row_idx = N*K+cumE2(i)+j;
+    for i=1:D   % iterate through constraints psi
+        interval = intervals{i}';
+        for j=1:size(interval,1)-2
             if j==1
-                A(row_idx,cumE(i)+j) = -1;
-                B(row_idx) = -1/(2*(length(interval)-1));   % new
-            elseif j == length(interval)-1
-                A(row_idx, cumE(i)+j-1) = 1;
-            %    B(row_idx) = 1;
-                B(row_idx) = 1 + 1/(2*(length(interval)-1));
+                A(N*K+cumE(i)+j,cumE(i)+j) = -1;
+            elseif j== size(interval,1)-2
+                A(N*K+cumE(i)+j, cumE(i)+j) =1;
+                B(N*K+cumE(i)+j,1) = 1;
             else
-                A(row_idx,cumE(i)+j-1) = 1;
-                A(row_idx,cumE(i)+j) = -1;
-                B(row_idx) = 0;
+                A(N*K+cumE(i)+j,cumE(i)+j) = -1;
+                A(N*K+cumE(i)+j,cumE(i)+j+1) = 1;
             end
         end
     end
     
-%     init_Var = zeros(E+N,1);
-%     cc = 0;
-%     for i = 1:D
-%         interval = intervals{i};
-%         init_Var(cc+1:cc+length(interval)-2) = interval(2:end-1)';
-%         cc = cc + length(interval)-2;
-%     end
-%     init_Var = [init_Var;psi];
-    
-    Var = linprog(C,A,B);
-    
-    cc = 0;
-    for i = 1:D
-        mm = intervals{i};
-        for j = 2:length(mm)-1
-            cc = cc + 1;
-            mm(j) = Var(cc);
-        end
-        intervals{i} = mm;
-    end
-
+    linprog(C,A,B);
+       
 end
-
-keyboard
