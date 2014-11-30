@@ -1,29 +1,40 @@
 function learn_ordinal
 
-load('nur_data.mat');
+name_data = 1; % 1: nur   2: car
+
 addpath('C:\Users\Yuan Shi\Desktop\ordinal_svm\liblinear-1.96\matlab');
 addpath('C:\Users\Yuan Shi\Desktop\ordinal_svm\libknn2\mexfunctions');
 addpath('C:\Users\Yuan Shi\Desktop\ordinal_svm\libknn2\helperfunctions');
 addpath('C:\Users\Yuan Shi\Desktop\ordinal_svm\libknn2');
 
-% idx = find(trY == 2);
-% trY(idx) = []; trX(idx,:) = [];
-% trY(trY>2) = trY(trY>2) - 1;
-% idx = find(teY == 2);
-% teY(idx) = []; teX(idx,:) = [];
-% teY(teY>2) = teY(teY>2) - 1;
-
-data = trX;
-y = trY;
-
-tst_data = teX;
-tst_y = teY;
-
-% data(:,3) = data(:,3)-1;
-% data(:,4) = data(:,4)/2;
-% 
-% tst_data(:,3) = tst_data(:,3)-1;
-% tst_data(:,4) = tst_data(:,4)/2;
+if name_data == 1
+    load('nur_data2.mat');
+    
+    data = trX;
+    y = trY;
+    
+    [val,idx] = sort(y);
+    data = data(idx,:);
+    y = y(idx);
+    
+    tst_data = teX;
+    tst_y = teY;
+else
+    load('car_data.mat');
+    
+    data = trX;
+    y = trY;
+    
+    tst_data = teX;
+    tst_y = teY;
+    
+    data(:,3) = data(:,3)-1;
+    data(:,4) = data(:,4)/2;
+    
+    tst_data(:,3) = tst_data(:,3)-1;
+    tst_data(:,4) = tst_data(:,4)/2;
+    
+end
 
 % suppose all the attributes are ordinal 
 N = size(data,1);
@@ -48,20 +59,20 @@ for i=1:D
     interval = linspace(1/(2*n), (2*n+1)/(2*n), n+1);
     intervals{i}=interval;
 end
-H = zeros(N*K,1);
-G = zeros(N*K,D*K+N);
-Q = zeros(D*K+N,1);
+H = sparse(N*K,1);
+G = sparse(N*K,D*K+N);
+Q = sparse(D*K+N,1);
 
 % initialize p
-P = zeros(D*K+N, D*K+N);
+P = sparse(D*K+N, D*K+N);
 for i=1:D*K
     P(i,i)=1;
 end
 
 %% baseline SVM
 best_accu = 0;
-for regularizer = 4.^[-3:3]
-    cmd = ['-s 3 -c ', num2str(regularizer), ' -v 5'];
+for regularizer = 4.^[0]
+    cmd = ['-q -s 4 -c ', num2str(regularizer), ' -v 5'];
     accu = train(y, sparse(data), cmd);
     if accu > best_accu
         best_reg = regularizer;
@@ -84,7 +95,7 @@ for i=  1:D
     norm_data(:,i) = norm_data(:,i) / max( norm_data(:,i) );
 end
 
-cmd = ['-s 3 -c ', num2str(regularizer)];
+cmd = ['-q -s 4 -c ', num2str(regularizer)];
 model = train(y, sparse(norm_data), cmd);
 
 [predicted_label, accuracy, decision_values] = predict(y, sparse(norm_data), model);
@@ -93,15 +104,17 @@ baseline_accu_train = accuracy(1);
 [predicted_label, accuracy, decision_values] = predict(tst_y, sparse(norm_tst_data), model);
 baseline_accu = accuracy(1);
 
+
+
 % create Q
 for j=D*K+1:D*K+N
     Q(j)=regularizer;
 end
 
 % baseline knn
-baseline_knn = knncl(eye(D), norm_data', y', norm_tst_data', tst_y', 3);
+%baseline_knn = knncl(eye(D), norm_data', y', norm_tst_data', tst_y', 3);
 
-%% EM-step
+%% EM-q -step
 
 for itr = 1:8
     disp(['iter = ',num2str(itr), ' ******']);
@@ -158,10 +171,12 @@ for itr = 1:8
    end
    
    % train libliner
-   cmd = ['-s 3 -c ', num2str(regularizer)];
+   cmd = ['-q -s 4 -c ', num2str(regularizer)];
    model = train(y, sparse(new_X), cmd);
    
    W = model.w;
+   
+   % objective value
    psi = zeros(N,1);
    for i = 1:N
        psi_i = 0;
@@ -173,6 +188,21 @@ for itr = 1:8
    end
    
    obj_val(itr) = regularizer * sum(psi) + sum( sum( W.^2 ) ) / 2;
+   
+   obj_val_old(1) = 0;
+   if itr > 1
+       psi = zeros(N,1);
+       for i = 1:N
+           psi_i = 0;
+           for c = 1:K
+               tmp = (old_W(c,:) - old_W(y(i),:))*new_X(i,:)' + (y(i) ~= c);
+               psi_i = max( psi_i, tmp);
+           end
+           psi(i) = psi_i;
+       end
+       
+       obj_val_old(itr) = regularizer * sum(psi) + sum( sum( old_W.^2 ) ) / 2;
+   end
    
    % generating test data
    tst_N = length(tst_y);
@@ -189,18 +219,18 @@ for itr = 1:8
    
    [predicted_label, accuracy, decision_values] = predict(tst_y, sparse(new_tst_X), model);
    ordinal_accu(itr) = accuracy(1);
+  
    
-   ordinal_knn{itr} = knncl(eye(D), new_X', y', new_tst_X', tst_y', 3);
+%   ordinal_knn{itr} = knncl(eye(D), new_X', y', new_tst_X', tst_y', 3);
    
+    sta = tic;
    %% Fix W, learn M, linear programming
     C = zeros(E+N,1);    % objective coefficient
     C(E+1:E+N,1) = 1;
     
     % Ax <= B
-    B = zeros(N*K + E + D, 1);
-    A = zeros(N*K + E + D, E+N);
-    
-    A = sparse(A); B = sparse(B);
+    B = sparse(N*K + E + D, 1);
+    A = sparse(N*K + E + D, E+N);
     
     for i=1:N % for each instance
         instance = data(i,:);
@@ -227,11 +257,12 @@ for itr = 1:8
                     
                     if instance(j)==1 % only include the first end point
                         A(row_idx, cumE(j)+1) = delta;
+                        B(row_idx) = B(row_idx) - delta * interval(1);
                         
-                    elseif instance(j)== size(interval,1)-1 % only include the last end point
-                        A(row_idx, cumE(j)+size(interval,1)-2) = delta;
+                    elseif instance(j)== length(interval)-1 % only include the last end point
+                        A(row_idx, cumE(j)+length(interval)-2) = delta;
                        % A(row_idx,E+i) = A((i-1)*K+k,E+i) - 1/2 * a(j);
-                        B(row_idx) = B(row_idx) - delta;
+                        B(row_idx) = B(row_idx) - delta * interval(end);
      
                     else  % include both of end points
                         A(row_idx, cumE(j)+instance(j)-1) = delta;
@@ -260,7 +291,7 @@ for itr = 1:8
             else
                 A(row_idx,cumE(i)+j-1) = 1;
                 A(row_idx,cumE(i)+j) = -1;
-                B(row_idx) = 0;
+                B(row_idx) = 0.1;
             end
         end
     end
@@ -273,8 +304,22 @@ for itr = 1:8
 %         cc = cc + length(interval)-2;
 %     end
 %     init_Var = [init_Var;psi];
+    dur = toc(sta);
+    disp('generating matrix');
+    disp(dur);
     
+    sta = tic;
+    disp('linear programming');
     Var = linprog(C,A,B);
+    dur = toc(sta);
+    disp(dur);
+    
+    % objective value
+    psi = Var(E+1:end);
+    
+    obj_val2(itr) = regularizer * sum(psi) + sum( sum( W.^2 ) ) / 2;
+    
+    old_W = W;
     
     cc = 0;
     for i = 1:D
@@ -285,7 +330,11 @@ for itr = 1:8
         end
         intervals{i} = mm;
     end
-
+    
+    for v = 1:itr
+    fprintf('*** %g obj: %g\t%g\n', v, obj_val(v), obj_val2(v));
+    end
+    keyboard    
 end
 
 keyboard
