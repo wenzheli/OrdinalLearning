@@ -2,7 +2,9 @@ function ordinal_metric(name_data)
 
 % 1: nur   2: car    3: balance  4: syn
 
-addpath('C:\Users\Yuan Shi\Desktop\ordinal_metric\mLMNN2.5');
+name_data = 1;
+
+addpath('D:\workplace\OrdinalLearning\metric');
 
 split = 1;  % first run
 
