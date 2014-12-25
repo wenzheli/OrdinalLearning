@@ -1,0 +1,18 @@
+function accu = compute_accuracy(intervals, L, data, y, va_data, va_y)
+% compute the accuracy using KNN. 
+total = size(va_data);
+correct = 0;
+
+dim = size(data, 2);
+
+for i = 1: size(va_data, 1)
+    curr_test = va_data(i,:)';   % column vector
+    curr_label = va_y(i);        % current label
+    
+    
+    % calculate the distance with all the training data
+    for j = 1: size(data,1)
+        
+    end
+    
+end
