@@ -26,13 +26,13 @@ tmp_interval;
 for iter = 1: max_iter
     % iterate all the columnes, and get the best one.
     for i = 1: num_column
-        curr_interval = intervals{i};
+        curr_interval = intervals{i};   % row vector
         % divide current_interval into K pieces, and search
         % for the best end points 
         all_permutations = permute_interval(curr_interval, K);
         for j = 1: size(all_permutations)
             % add candidate into the intervals. 
-            intervals{i} = all_permutations(j);
+            intervals{i} = all_permutations(j,:);
             accu = compute_accuracy(intervals, L, data, y, va_data, va_y);
             
             % save the current best
